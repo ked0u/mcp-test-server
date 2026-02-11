@@ -186,6 +186,11 @@ app.post('/mcp', authenticate, async (req, res) => {
   console.log('MCP connection request received');
   console.log('Headers:', req.headers);
   
+  // Set SSE headers immediately so client knows connection is established
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  
   const transport = new SSEServerTransport('/mcp', res);
   await mcpServer.connect(transport);
   console.log('MCP server connected via SSE');
