@@ -1,0 +1,45 @@
+
+🚀 MCP Test Server running on http://localhost:3000
+
+📋 Configuration for Appian:
+   Server URL: http://localhost:3000/mcp
+   API Key: test-api-key-12345
+   Header Name: X-API-Key (or Authorization)
+
+✅ Health check: http://localhost:3000/health
+
+🔑 Test with curl:
+   curl -X POST http://localhost:3000/mcp \
+     -H "X-API-Key: test-api-key-12345" \
+     -H "Content-Type: application/json" \
+     -H "Accept: text/event-stream"
+MCP connection request received
+Headers: {
+  host: 'kimberlee-nonbotanical-federico.ngrok-free.dev',
+  'user-agent': 'Apache-HttpClient/5.2.1 (Java/17.0.17)',
+  'content-length': '166',
+  accept: 'application/json, text/event-stream',
+  'accept-encoding': 'gzip, x-gzip, deflate',
+  authorization: 'test-api-key-12345',
+  'content-type': 'application/json',
+  'x-forwarded-for': '3.215.25.33',
+  'x-forwarded-host': 'kimberlee-nonbotanical-federico.ngrok-free.dev',
+  'x-forwarded-proto': 'https'
+}
+file:///Users/ke.dou/repo/mcp-test-server/node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js:99
+            throw new Error('Schema is missing a method literal');
+                  ^
+
+Error: Schema is missing a method literal
+    at Server.setRequestHandler (file:///Users/ke.dou/repo/mcp-test-server/node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js:99:19)
+    at file:///Users/ke.dou/repo/mcp-test-server/server.js:51:10
+    at Layer.handle [as handle_request] (/Users/ke.dou/repo/mcp-test-server/node_modules/express/lib/router/layer.js:95:5)
+    at next (/Users/ke.dou/repo/mcp-test-server/node_modules/express/lib/router/route.js:149:13)
+    at authenticateApiKey (file:///Users/ke.dou/repo/mcp-test-server/server.js:23:3)
+    at Layer.handle [as handle_request] (/Users/ke.dou/repo/mcp-test-server/node_modules/express/lib/router/layer.js:95:5)
+    at next (/Users/ke.dou/repo/mcp-test-server/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/Users/ke.dou/repo/mcp-test-server/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/Users/ke.dou/repo/mcp-test-server/node_modules/express/lib/router/layer.js:95:5)
+    at /Users/ke.dou/repo/mcp-test-server/node_modules/express/lib/router/index.js:284:15
+
+Node.js v24.4.1
