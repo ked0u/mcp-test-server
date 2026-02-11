@@ -190,6 +190,7 @@ app.post('/mcp', authenticate, async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders(); // Force headers to be sent immediately
   
   const transport = new SSEServerTransport('/mcp', res);
   await mcpServer.connect(transport);
