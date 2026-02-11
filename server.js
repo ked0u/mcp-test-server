@@ -13,6 +13,17 @@ const OAUTH_CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET || 'test-client-secr
 const OAUTH_TOKENS = new Map(); // In-memory token storage
 
 app.use(express.json());
+
+// Custom middleware to handle any charset in urlencoded requests
+app.use((req, res, next) => {
+  const contentType = req.headers['content-type'];
+  if (contentType && contentType.includes('application/x-www-form-urlencoded')) {
+    // Strip charset parameter to avoid body-parser charset validation
+    req.headers['content-type'] = 'application/x-www-form-urlencoded';
+  }
+  next();
+});
+
 app.use(express.urlencoded({ extended: true }));
 
 // API Key authentication middleware
