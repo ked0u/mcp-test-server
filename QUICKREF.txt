@@ -1,0 +1,35 @@
+╔══════════════════════════════════════════════════════════════╗
+║           MCP Test Server - Quick Reference                  ║
+╠══════════════════════════════════════════════════════════════╣
+║ Location: /Users/ke.dou/repo/mcp-test-server                ║
+╠══════════════════════════════════════════════════════════════╣
+║ COMMANDS:                                                    ║
+║   ./mcp-server.sh start    - Start the server                ║
+║   ./mcp-server.sh stop     - Stop the server                 ║
+║   ./mcp-server.sh status   - Check if running                ║
+║   ./mcp-server.sh logs     - View server logs                ║
+╠══════════════════════════════════════════════════════════════╣
+║ CONFIGURATION:                                               ║
+║   Server URL: http://localhost:3000/mcp                      ║
+║   API Key:    test-api-key-12345                             ║
+║   Health:     http://localhost:3000/health                   ║
+╠══════════════════════════════════════════════════════════════╣
+║ APPIAN SETUP (Option 1 - X-API-Key):                        ║
+║   Server URL:     http://localhost:3000/mcp                  ║
+║   API Key:        test-api-key-12345                         ║
+║   Header Name:    X-API-Key                                  ║
+║   Header Prefix:  (empty)                                    ║
+╠══════════════════════════════════════════════════════════════╣
+║ APPIAN SETUP (Option 2 - Authorization Bearer):             ║
+║   Server URL:     http://localhost:3000/mcp                  ║
+║   API Key:        test-api-key-12345                         ║
+║   Header Name:    Authorization                              ║
+║   Header Prefix:  Bearer                                     ║
+╠══════════════════════════════════════════════════════════════╣
+║ QUICK TESTS:                                                 ║
+║   Health:  curl http://localhost:3000/health                 ║
+║   Invalid: curl -X POST http://localhost:3000/mcp \          ║
+║              -H "X-API-Key: wrong"                           ║
+║   Valid:   curl -X POST http://localhost:3000/mcp \          ║
+║              -H "X-API-Key: test-api-key-12345"              ║
+╚══════════════════════════════════════════════════════════════╝

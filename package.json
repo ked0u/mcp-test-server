@@ -1,0 +1,9 @@
+{
+  "name": "mcp-test-server",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "express": "^4.18.2"
+  }
+}
