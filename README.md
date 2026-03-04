@@ -1,130 +1,96 @@
 # MCP Test Server
 
-A simple MCP server with **API Key** and **OAuth 2.0 Client Credentials** authentication for testing the Appian MCP Connected System plugin.
+A simple MCP server with **API Key**, **OAuth 2.0 Client Credentials**, and **OAuth 2.0 Authorization Code** authentication for testing the Appian MCP Connected System plugin.
+
+## Live Server
+
+**Base URL:** `https://web-production-80ec7.up.railway.app`
+
+## Authentication Options
+
+### 1. API Key Authentication
+| Setting | Value |
+|---------|-------|
+| Server URL | `https://web-production-80ec7.up.railway.app/mcp` |
+| API Key | `test-api-key-12345` |
+| Header | `X-API-Key` or `Authorization: Bearer` |
+
+### 2. OAuth 2.0 Client Credentials
+| Setting | Value |
+|---------|-------|
+| Server URL | `https://web-production-80ec7.up.railway.app/mcp` |
+| Token URL | `https://web-production-80ec7.up.railway.app/oauth/token` |
+| Client ID | `test-client-id` |
+| Client Secret | `test-client-secret` |
+| Grant Type | `client_credentials` |
+
+### 3. OAuth 2.0 Authorization Code
+| Setting | Value |
+|---------|-------|
+| Server URL | `https://web-production-80ec7.up.railway.app/mcp` |
+| Authorization URL | `https://web-production-80ec7.up.railway.app/oauth/authorize` |
+| Token URL | `https://web-production-80ec7.up.railway.app/oauth/token` |
+| Client ID | `test-client-id` |
+| Client Secret | `test-client-secret` |
+| Test Username | `testuser` |
+| Test Password | `testpass` |
+
+## Local Development
+
+```bash
+npm install
+npm start
+```
+
+Local server runs at `http://localhost:3000`
+
+## Testing
+
+### Health Check
+```bash
+curl https://web-production-80ec7.up.railway.app/health
+```
+
+### API Key Auth
+```bash
+curl -X POST https://web-production-80ec7.up.railway.app/mcp \
+  -H "X-API-Key: test-api-key-12345" \
+  -H "Content-Type: application/json"
+```
+
+### OAuth Client Credentials
+```bash
+# Get token
+curl -X POST https://web-production-80ec7.up.railway.app/oauth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&client_id=test-client-id&client_secret=test-client-secret"
+
+# Use token
+curl -X POST https://web-production-80ec7.up.railway.app/mcp \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json"
+```
+
+### OAuth Authorization Code
+1. Open in browser: `https://web-production-80ec7.up.railway.app/oauth/authorize?client_id=test-client-id&redirect_uri=YOUR_REDIRECT_URI&response_type=code`
+2. Login with `testuser` / `testpass`
+3. Exchange the code for a token at `/oauth/token` with `grant_type=authorization_code`
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3000` | Server port |
+| `OAUTH_CLIENT_ID` | `test-client-id` | OAuth client ID |
+| `OAUTH_CLIENT_SECRET` | `test-client-secret` | OAuth client secret |
 
 ## Features
 
 - ✅ API Key authentication
 - ✅ OAuth 2.0 Client Credentials grant
-- ✅ MCP protocol over Server-Sent Events (SSE)
-- ✅ Health check endpoint
-- ✅ Easy deployment to cloud platforms
-
-## Quick Start (Local)
-
-```bash
-cd /Users/ke.dou/repo/mcp-test-server
-
-# Install dependencies (first time only)
-npm install
-
-# Start the server
-npm start
-```
-
-## Configuration
-
-### API Key Authentication
-- **Server URL**: `http://localhost:3000/mcp`
-- **API Key**: `test-api-key-12345`
-- **Header**: `X-API-Key` or `Authorization`
-
-### OAuth 2.0 Authentication
-- **Server URL**: `http://localhost:3000/mcp`
-- **Token URL**: `http://localhost:3000/oauth/token`
-- **Client ID**: `test-client-id` (or set `OAUTH_CLIENT_ID` env var)
-- **Client Secret**: `test-client-secret` (or set `OAUTH_CLIENT_SECRET` env var)
-- **Grant Type**: `client_credentials`
-
-## Testing
-
-### Test API Key Auth
-```bash
-curl -X POST http://localhost:3000/mcp \
-  -H "X-API-Key: test-api-key-12345" \
-  -H "Content-Type: application/json"
-```
-
-### Test OAuth Auth
-```bash
-# 1. Get access token
-curl -X POST http://localhost:3000/oauth/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=client_credentials&client_id=test-client-id&client_secret=test-client-secret"
-
-# 2. Use the token (replace TOKEN with actual token from step 1)
-curl -X POST http://localhost:3000/mcp \
-  -H "Authorization: Bearer TOKEN" \
-  -H "Content-Type: application/json"
-```
-
-## Deployment
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for instructions on deploying to Render.com or other cloud platforms.
-
-## Environment Variables
-
-- `PORT`: Server port (default: 3000)
-- `OAUTH_CLIENT_ID`: OAuth client ID (default: test-client-id)
-- `OAUTH_CLIENT_SECRET`: OAuth client secret (default: test-client-secret)
-  - `X-API-Key: test-api-key-12345`
-  - `Authorization: Bearer test-api-key-12345`
-
-## Appian Configuration
-
-When testing in Appian MCP Connected System:
-
-1. **Server URL**: `http://localhost:3000/mcp`
-2. **API Key**: `test-api-key-12345`
-3. **Header Name**: `X-API-Key`
-4. **Header Prefix**: (leave empty)
-
-Or with Authorization header:
-1. **Server URL**: `http://localhost:3000/mcp`
-2. **API Key**: `test-api-key-12345`
-3. **Header Name**: `Authorization`
-4. **Header Prefix**: `Bearer`
-
-## Manual Testing
-
-### Health Check (No Auth)
-```bash
-curl http://localhost:3000/health
-```
-
-### Invalid API Key (Should fail)
-```bash
-curl -X POST http://localhost:3000/mcp \
-  -H "X-API-Key: wrong-key" \
-  -H "Content-Type: application/json"
-```
-
-### Valid API Key (Should succeed)
-```bash
-curl -X POST http://localhost:3000/mcp \
-  -H "X-API-Key: test-api-key-12345" \
-  -H "Content-Type: application/json" \
-  -H "Accept: text/event-stream" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "initialize",
-    "params": {
-      "protocolVersion": "2024-11-05",
-      "capabilities": {},
-      "clientInfo": {
-        "name": "test-client",
-        "version": "1.0.0"
-      }
-    }
-  }'
-```
-
-## Features
-
-- ✅ API Key authentication (X-API-Key or Authorization header)
-- ✅ SSE transport for MCP protocol
-- ✅ Sample tool: `echo` - echoes back input
+- ✅ OAuth 2.0 Authorization Code grant
+- ✅ Refresh token support
+- ✅ MCP protocol over SSE
+- ✅ Sample tool: `echo`
 - ✅ Sample resource: `test://example`
 - ✅ Health check endpoint
-- ✅ Proper error responses for invalid/missing API keys
