@@ -114,7 +114,10 @@ app.get('/oauth/authorize', (req, res) => {
         <input type="hidden" name="state" value="${state || ''}">
         <p><label>Username: <input type="text" name="username" value="testuser"></label></p>
         <p><label>Password: <input type="password" name="password" value="testpass"></label></p>
-        <p><button type="submit" style="padding: 10px 20px;">Authorize</button></p>
+        <p>
+          <button type="submit" style="padding: 10px 20px;">Authorize</button>
+          <button type="submit" name="cancel" value="true" style="padding: 10px 20px; margin-left: 10px;">Cancel</button>
+        </p>
       </form>
     </body>
     </html>
@@ -122,12 +125,21 @@ app.get('/oauth/authorize', (req, res) => {
 });
 
 app.post('/oauth/authorize', (req, res) => {
-  const { client_id, redirect_uri, scope, state, username, password } = req.body;
+  const { client_id, redirect_uri, scope, state, username, password, cancel } = req.body;
   
   console.log('OAuth authorize POST:', { client_id, redirect_uri, scope, state, username });
   
   if (!redirect_uri) {
     return res.status(400).send('Missing required parameter: redirect_uri');
+  }
+  
+  // Handle cancel - return access_denied error per RFC 6749 Section 4.1.2.1
+  if (cancel) {
+    const redirectUrl = new URL(redirect_uri);
+    redirectUrl.searchParams.set('error', 'access_denied');
+    redirectUrl.searchParams.set('error_description', 'User denied authorization');
+    if (state) redirectUrl.searchParams.set('state', state);
+    return res.redirect(redirectUrl.toString());
   }
   
   if (client_id !== OAUTH_CLIENT_ID) {
