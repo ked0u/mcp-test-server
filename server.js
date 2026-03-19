@@ -1,6 +1,8 @@
 import express from 'express';
+import { randomUUID } from 'crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 const app = express();
@@ -15,10 +17,19 @@ const OAUTH_TEST_PASSWORD = 'testpass';
 const OAUTH_TOKENS = new Map(); // In-memory token storage
 const OAUTH_AUTH_CODES = new Map(); // In-memory authorization code storage
 
-app.use(express.json());
+// Skip body parsing for /messages - let SSEServerTransport handle it
+app.use((req, res, next) => {
+  if (req.path === '/messages') {
+    return next();
+  }
+  express.json()(req, res, next);
+});
 
 // Custom middleware to handle any charset in urlencoded requests
 app.use((req, res, next) => {
+  if (req.path === '/messages') {
+    return next();
+  }
   const contentType = req.headers['content-type'];
   if (contentType && contentType.includes('application/x-www-form-urlencoded')) {
     // Strip charset parameter to avoid body-parser charset validation
@@ -27,7 +38,12 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+  if (req.path === '/messages') {
+    return next();
+  }
+  express.urlencoded({ extended: true })(req, res, next);
+});
 
 // API Key authentication middleware
 function authenticateApiKey(req, res, next) {
@@ -295,68 +311,71 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'MCP Test Server is running' });
 });
 
-// Create MCP server instance once
-const mcpServer = new Server(
-  {
-    name: 'test-mcp-server',
-    version: '1.0.0',
-  },
-  {
-    capabilities: {
-      tools: {},
-      resources: {},
+// Factory function to create MCP server instance per connection
+function createMcpServer() {
+  const server = new Server(
+    {
+      name: 'test-mcp-server',
+      version: '1.0.0',
     },
-  }
-);
-
-// Register handlers once
-mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
-      {
-        name: 'echo',
-        description: 'Echoes back the input',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            message: {
-              type: 'string',
-              description: 'Message to echo',
-            },
-          },
-          required: ['message'],
-        },
+    {
+      capabilities: {
+        tools: {},
+        resources: {},
       },
-    ],
-  };
-});
+    }
+  );
 
-mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
-  if (request.params.name === 'echo') {
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
-      content: [
+      tools: [
         {
-          type: 'text',
-          text: `Echo: ${request.params.arguments.message}`,
+          name: 'echo',
+          description: 'Echoes back the input',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              message: {
+                type: 'string',
+                description: 'Message to echo',
+              },
+            },
+            required: ['message'],
+          },
         },
       ],
     };
-  }
-  throw new Error(`Unknown tool: ${request.params.name}`);
-});
+  });
 
-mcpServer.setRequestHandler(ListResourcesRequestSchema, async () => {
-  return {
-    resources: [
-      {
-        uri: 'test://example',
-        name: 'Example Resource',
-        description: 'A test resource',
-        mimeType: 'text/plain',
-      },
-    ],
-  };
-});
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (request.params.name === 'echo') {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Echo: ${request.params.arguments.message}`,
+          },
+        ],
+      };
+    }
+    throw new Error(`Unknown tool: ${request.params.name}`);
+  });
+
+  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    return {
+      resources: [
+        {
+          uri: 'test://example',
+          name: 'Example Resource',
+          description: 'A test resource',
+          mimeType: 'text/plain',
+        },
+      ],
+    };
+  });
+
+  return server;
+}
 
 // Store active transports by session ID
 const transports = new Map();
@@ -373,11 +392,29 @@ app.get('/sse', authenticate, async (req, res) => {
     console.log('SSE connection closed:', transport.sessionId);
   });
   
-  await mcpServer.connect(transport);
+  const server = createMcpServer();
+  await server.connect(transport);
   console.log('MCP server connected, session:', transport.sessionId);
 });
 
-// Messages endpoint - client POSTs messages here
+// MCP endpoint - alias for /sse (HTTP+SSE transport)
+app.get('/mcp', authenticate, async (req, res) => {
+  console.log('MCP SSE connection request received');
+  
+  const transport = new SSEServerTransport('/messages', res);
+  transports.set(transport.sessionId, transport);
+  
+  res.on('close', () => {
+    transports.delete(transport.sessionId);
+    console.log('MCP connection closed:', transport.sessionId);
+  });
+  
+  const server = createMcpServer();
+  await server.connect(transport);
+  console.log('MCP server connected, session:', transport.sessionId);
+});
+
+// Messages endpoint - client POSTs messages here (HTTP+SSE transport)
 app.post('/messages', authenticate, async (req, res) => {
   const sessionId = req.query.sessionId;
   const transport = transports.get(sessionId);
@@ -386,22 +423,114 @@ app.post('/messages', authenticate, async (req, res) => {
     return res.status(400).json({ error: 'Invalid or missing session ID' });
   }
   
-  await transport.handlePostMessage(req, res);
+  await transport.handlePostMessage(req, res, req.body);
+});
+
+// POST to /sse - for HTTP+SSE transport message handling
+app.post('/sse', authenticate, async (req, res) => {
+  const sessionId = req.query.sessionId;
+  const transport = transports.get(sessionId);
+  
+  if (!transport) {
+    return res.status(400).json({ error: 'Invalid or missing session ID' });
+  }
+  
+  await transport.handlePostMessage(req, res, req.body);
+});
+
+// Streamable HTTP transport - stores transports by session ID
+const streamableTransports = new Map();
+
+// POST /mcp - Streamable HTTP transport (handles both init and messages)
+app.post('/mcp', authenticate, async (req, res) => {
+  // APPIAN PLUGIN WORKAROUND: The Appian MCP Connected System plugin doesn't send
+  // the required "Accept: application/json, text/event-stream" header.
+  // We inject it here to satisfy the MCP Streamable HTTP spec validation.
+  if (!req.headers['accept']?.includes('text/event-stream')) {
+    const accept = 'application/json, text/event-stream';
+    req.headers['accept'] = accept;
+    const idx = req.rawHeaders.findIndex(h => h.toLowerCase() === 'accept');
+    if (idx >= 0) {
+      req.rawHeaders[idx + 1] = accept;
+    } else {
+      req.rawHeaders.push('Accept', accept);
+    }
+  }
+  
+  const sessionId = req.headers['mcp-session-id'];
+  
+  // Existing session - route to existing transport
+  if (sessionId && streamableTransports.has(sessionId)) {
+    const transport = streamableTransports.get(sessionId);
+    await transport.handleRequest(req, res, req.body);
+    return;
+  }
+  
+  // New session - create transport
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+  });
+  
+  transport.onclose = () => {
+    if (transport.sessionId) {
+      streamableTransports.delete(transport.sessionId);
+      console.log('Streamable HTTP session closed:', transport.sessionId);
+    }
+  };
+  
+  const server = createMcpServer();
+  await server.connect(transport);
+  
+  // Store after connect so sessionId is set
+  if (transport.sessionId) {
+    streamableTransports.set(transport.sessionId, transport);
+    console.log('Streamable HTTP session created:', transport.sessionId);
+  }
+  
+  await transport.handleRequest(req, res, req.body);
+});
+
+// GET /mcp - Streamable HTTP transport (for SSE stream reconnection)
+app.get('/mcp', authenticate, async (req, res) => {
+  const sessionId = req.headers['mcp-session-id'];
+  
+  if (!sessionId || !streamableTransports.has(sessionId)) {
+    return res.status(400).json({ error: 'Invalid or missing session ID' });
+  }
+  
+  const transport = streamableTransports.get(sessionId);
+  await transport.handleRequest(req, res);
+});
+
+// DELETE /mcp - Streamable HTTP transport (session termination)
+app.delete('/mcp', authenticate, async (req, res) => {
+  const sessionId = req.headers['mcp-session-id'];
+  
+  if (!sessionId || !streamableTransports.has(sessionId)) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  const transport = streamableTransports.get(sessionId);
+  await transport.close();
+  streamableTransports.delete(sessionId);
+  
+  res.status(200).json({ message: 'Session terminated' });
 });
 
 app.listen(PORT, () => {
   console.log(`\n🚀 MCP Test Server running on http://localhost:${PORT}`);
-  console.log(`\n📋 API Key Configuration:`);
+  console.log(`\n📋 Streamable HTTP Transport (recommended):`);
+  console.log(`   URL: http://localhost:${PORT}/mcp`);
+  console.log(`\n📋 HTTP+SSE Transport (legacy):`);
   console.log(`   SSE URL: http://localhost:${PORT}/sse`);
+  console.log(`\n📋 API Key Authentication:`);
   console.log(`   API Key: ${API_KEY}`);
   console.log(`   Header Name: X-API-Key (or Authorization)`);
   console.log(`\n📋 OAuth 2.0 Client Credentials:`);
-  console.log(`   SSE URL: http://localhost:${PORT}/sse`);
   console.log(`   Token URL: http://localhost:${PORT}/oauth/token`);
   console.log(`   Client ID: ${OAUTH_CLIENT_ID}`);
   console.log(`   Client Secret: ${OAUTH_CLIENT_SECRET}`);
   console.log(`\n📋 OAuth 2.0 Authorization Code:`);
-  console.log(`   SSE URL: http://localhost:${PORT}/sse`);
   console.log(`   Auth URL: http://localhost:${PORT}/oauth/authorize`);
   console.log(`   Token URL: http://localhost:${PORT}/oauth/token`);
   console.log(`   Client ID: ${OAUTH_CLIENT_ID}`);
