@@ -423,18 +423,19 @@ const streamableTransports = new Map();
 
 // POST /mcp - Streamable HTTP transport (handles both init and messages)
 app.post('/mcp', authenticate, async (req, res) => {
-  // APPIAN PLUGIN WORKAROUND: The Appian MCP Connected System plugin doesn't send
-  // the required "Accept: application/json, text/event-stream" header.
-  // We inject it here to satisfy the MCP Streamable HTTP spec validation.
-  if (!req.headers['accept']?.includes('text/event-stream')) {
-    const accept = 'application/json, text/event-stream';
-    req.headers['accept'] = accept;
-    const idx = req.rawHeaders.findIndex(h => h.toLowerCase() === 'accept');
-    if (idx >= 0) {
-      req.rawHeaders[idx + 1] = accept;
-    } else {
-      req.rawHeaders.push('Accept', accept);
-    }
+  // TODO: Remove this workaround once Appian's MCP client properly handles SSE responses.
+  // APPIAN PLUGIN WORKAROUND: Appian's HttpClientStreamableHttpTransport expects
+  // application/json responses but the MCP SDK returns text/event-stream when the
+  // Accept header includes it. The Reactor pipeline swallows the resulting parse error
+  // via onErrorDropped instead of propagating it, so the SSE fallback never fires.
+  // Force JSON-only Accept so the SDK responds with plain JSON.
+  const accept = 'application/json';
+  req.headers['accept'] = accept;
+  const idx = req.rawHeaders.findIndex(h => h.toLowerCase() === 'accept');
+  if (idx >= 0) {
+    req.rawHeaders[idx + 1] = accept;
+  } else {
+    req.rawHeaders.push('Accept', accept);
   }
   
   const sessionId = req.headers['mcp-session-id'];
