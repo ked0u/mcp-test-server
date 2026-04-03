@@ -4,6 +4,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { listTools, callTool } from './tools.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -327,38 +328,17 @@ function createMcpServer() {
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-      tools: [
-        {
-          name: 'echo',
-          description: 'Echoes back the input',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              message: {
-                type: 'string',
-                description: 'Message to echo',
-              },
-            },
-            required: ['message'],
-          },
-        },
-      ],
-    };
+    return { tools: listTools() };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    if (request.params.name === 'echo') {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Echo: ${request.params.arguments.message}`,
-          },
-        ],
-      };
-    }
-    throw new Error(`Unknown tool: ${request.params.name}`);
+    const { name, arguments: args, _meta } = request.params;
+    const context = {
+      sessionId: request.params._meta?.sessionId,
+      progressToken: _meta?.progressToken,
+      server,
+    };
+    return callTool(name, args, context);
   });
 
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
