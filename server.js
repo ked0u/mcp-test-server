@@ -423,21 +423,18 @@ const streamableTransports = new Map();
 
 // POST /mcp - Streamable HTTP transport (handles both init and messages)
 app.post('/mcp', authenticate, async (req, res) => {
-  // TODO: Remove this workaround once Appian's MCP client properly handles SSE responses.
-  // APPIAN PLUGIN WORKAROUND: Appian's HttpClientStreamableHttpTransport expects
-  // application/json responses but the MCP SDK returns text/event-stream when the
-  // Accept header includes it. The Reactor pipeline swallows the resulting parse error
-  // via onErrorDropped instead of propagating it, so the SSE fallback never fires.
-  // Force JSON-only Accept so the SDK responds with plain JSON.
-  const accept = 'application/json';
-  req.headers['accept'] = accept;
-  const idx = req.rawHeaders.findIndex(h => h.toLowerCase() === 'accept');
-  if (idx >= 0) {
-    req.rawHeaders[idx + 1] = accept;
-  } else {
-    req.rawHeaders.push('Accept', accept);
+  // APPIAN PLUGIN WORKAROUND: Ensure Accept header satisfies SDK validation.
+  if (!req.headers['accept']?.includes('text/event-stream')) {
+    const accept = 'application/json, text/event-stream';
+    req.headers['accept'] = accept;
+    const idx = req.rawHeaders.findIndex(h => h.toLowerCase() === 'accept');
+    if (idx >= 0) {
+      req.rawHeaders[idx + 1] = accept;
+    } else {
+      req.rawHeaders.push('Accept', accept);
+    }
   }
-  
+
   const sessionId = req.headers['mcp-session-id'];
   
   // Existing session - route to existing transport
@@ -448,8 +445,10 @@ app.post('/mcp', authenticate, async (req, res) => {
   }
   
   // New session - create transport
+  // TODO: Remove enableJsonResponse once Appian's MCP client properly handles SSE responses.
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
+    enableJsonResponse: true,
   });
   
   transport.onclose = () => {
