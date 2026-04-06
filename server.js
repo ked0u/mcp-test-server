@@ -18,31 +18,25 @@ const OAUTH_TEST_PASSWORD = 'testpass';
 const OAUTH_TOKENS = new Map(); // In-memory token storage
 const OAUTH_AUTH_CODES = new Map(); // In-memory authorization code storage
 
-// Skip body parsing for /messages - let SSEServerTransport handle it
+// Skip body parsing for /messages and /mcp - transports handle their own parsing
+const skipBodyParsing = (req) => req.path === '/messages' || req.path === '/mcp';
+
 app.use((req, res, next) => {
-  if (req.path === '/messages') {
-    return next();
-  }
+  if (skipBodyParsing(req)) return next();
   express.json()(req, res, next);
 });
 
-// Custom middleware to handle any charset in urlencoded requests
 app.use((req, res, next) => {
-  if (req.path === '/messages') {
-    return next();
-  }
+  if (skipBodyParsing(req)) return next();
   const contentType = req.headers['content-type'];
   if (contentType && contentType.includes('application/x-www-form-urlencoded')) {
-    // Strip charset parameter to avoid body-parser charset validation
     req.headers['content-type'] = 'application/x-www-form-urlencoded';
   }
   next();
 });
 
 app.use((req, res, next) => {
-  if (req.path === '/messages') {
-    return next();
-  }
+  if (skipBodyParsing(req)) return next();
   express.urlencoded({ extended: true })(req, res, next);
 });
 
