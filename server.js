@@ -18,25 +18,31 @@ const OAUTH_TEST_PASSWORD = 'testpass';
 const OAUTH_TOKENS = new Map(); // In-memory token storage
 const OAUTH_AUTH_CODES = new Map(); // In-memory authorization code storage
 
-// Skip body parsing for /messages and /mcp - transports handle their own parsing
-const skipBodyParsing = (req) => req.path === '/messages' || req.path === '/mcp';
-
+// Skip body parsing for /messages - let SSEServerTransport handle it
 app.use((req, res, next) => {
-  if (skipBodyParsing(req)) return next();
+  if (req.path === '/messages') {
+    return next();
+  }
   express.json()(req, res, next);
 });
 
+// Custom middleware to handle any charset in urlencoded requests
 app.use((req, res, next) => {
-  if (skipBodyParsing(req)) return next();
+  if (req.path === '/messages') {
+    return next();
+  }
   const contentType = req.headers['content-type'];
   if (contentType && contentType.includes('application/x-www-form-urlencoded')) {
+    // Strip charset parameter to avoid body-parser charset validation
     req.headers['content-type'] = 'application/x-www-form-urlencoded';
   }
   next();
 });
 
 app.use((req, res, next) => {
-  if (skipBodyParsing(req)) return next();
+  if (req.path === '/messages') {
+    return next();
+  }
   express.urlencoded({ extended: true })(req, res, next);
 });
 
@@ -371,8 +377,22 @@ app.get('/sse', authenticate, async (req, res) => {
   console.log('MCP server connected, session:', transport.sessionId);
 });
 
-// NOTE: /mcp GET is handled below by the Streamable HTTP transport's reconnection handler.
-// Do NOT add an SSE-based GET /mcp here — it would shadow the Streamable HTTP GET /mcp route.
+// MCP endpoint - alias for /sse (HTTP+SSE transport)
+app.get('/mcp', authenticate, async (req, res) => {
+  console.log('MCP SSE connection request received');
+  
+  const transport = new SSEServerTransport('/messages', res);
+  transports.set(transport.sessionId, transport);
+  
+  res.on('close', () => {
+    transports.delete(transport.sessionId);
+    console.log('MCP connection closed:', transport.sessionId);
+  });
+  
+  const server = createMcpServer();
+  await server.connect(transport);
+  console.log('MCP server connected, session:', transport.sessionId);
+});
 
 // Messages endpoint - client POSTs messages here (HTTP+SSE transport)
 app.post('/messages', authenticate, async (req, res) => {
