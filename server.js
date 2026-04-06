@@ -377,22 +377,8 @@ app.get('/sse', authenticate, async (req, res) => {
   console.log('MCP server connected, session:', transport.sessionId);
 });
 
-// MCP endpoint - alias for /sse (HTTP+SSE transport)
-app.get('/mcp', authenticate, async (req, res) => {
-  console.log('MCP SSE connection request received');
-  
-  const transport = new SSEServerTransport('/messages', res);
-  transports.set(transport.sessionId, transport);
-  
-  res.on('close', () => {
-    transports.delete(transport.sessionId);
-    console.log('MCP connection closed:', transport.sessionId);
-  });
-  
-  const server = createMcpServer();
-  await server.connect(transport);
-  console.log('MCP server connected, session:', transport.sessionId);
-});
+// NOTE: /mcp GET is handled below by the Streamable HTTP transport's reconnection handler.
+// Do NOT add an SSE-based GET /mcp here — it would shadow the Streamable HTTP GET /mcp route.
 
 // Messages endpoint - client POSTs messages here (HTTP+SSE transport)
 app.post('/messages', authenticate, async (req, res) => {
@@ -460,14 +446,13 @@ app.post('/mcp', authenticate, async (req, res) => {
   
   const server = createMcpServer();
   await server.connect(transport);
-  
-  // Store after connect so sessionId is set
+  await transport.handleRequest(req, res, req.body);
+
+  // Store after handleRequest so sessionId is set from the initialize response
   if (transport.sessionId) {
     streamableTransports.set(transport.sessionId, transport);
     console.log('Streamable HTTP session created:', transport.sessionId);
   }
-  
-  await transport.handleRequest(req, res, req.body);
 });
 
 // GET /mcp - Streamable HTTP transport (for SSE stream reconnection)
