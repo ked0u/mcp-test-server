@@ -10,6 +10,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const API_KEY = 'test-api-key-12345';
 
+// Basic auth configuration
+const BASIC_AUTH_USERNAME = process.env.BASIC_AUTH_USERNAME || 'mcpuser';
+const BASIC_AUTH_PASSWORD = process.env.BASIC_AUTH_PASSWORD || 'mcppass';
+
 // OAuth configuration
 const OAUTH_CLIENT_ID = process.env.OAUTH_CLIENT_ID || 'test-client-id';
 const OAUTH_CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET || 'test-client-secret';
@@ -84,16 +88,39 @@ function authenticateOAuth(req, res, next) {
   next();
 }
 
-// Combined authentication - accepts either API key or OAuth token
+// Basic authentication middleware
+function authenticateBasic(req, res, next) {
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    return res.status(401).json({ error: 'Missing or invalid authorization header' });
+  }
+
+  const decoded = Buffer.from(authHeader.substring(6), 'base64').toString('utf-8');
+  const [username, password] = decoded.split(':');
+
+  if (username !== BASIC_AUTH_USERNAME || password !== BASIC_AUTH_PASSWORD) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  next();
+}
+
+// Combined authentication - accepts API key, OAuth token, or Basic auth
 function authenticate(req, res, next) {
   const authHeader = req.headers['authorization'];
   const apiKeyHeader = req.headers['x-api-key'];
-  
-  // Try OAuth first if Bearer token present
+
+  // Try Basic auth
+  if (authHeader && authHeader.startsWith('Basic ')) {
+    return authenticateBasic(req, res, next);
+  }
+
+  // Try OAuth if Bearer token present
   if (authHeader && authHeader.startsWith('Bearer ')) {
     return authenticateOAuth(req, res, next);
   }
-  
+
   // Fall back to API key
   return authenticateApiKey(req, res, next);
 }
@@ -491,6 +518,9 @@ app.listen(PORT, () => {
   console.log(`\n📋 API Key Authentication:`);
   console.log(`   API Key: ${API_KEY}`);
   console.log(`   Header Name: X-API-Key (or Authorization)`);
+  console.log(`\n📋 Basic Authentication:`);
+  console.log(`   Username: ${BASIC_AUTH_USERNAME}`);
+  console.log(`   Password: ${BASIC_AUTH_PASSWORD}`);
   console.log(`\n📋 OAuth 2.0 Client Credentials:`);
   console.log(`   Token URL: http://localhost:${PORT}/oauth/token`);
   console.log(`   Client ID: ${OAUTH_CLIENT_ID}`);
