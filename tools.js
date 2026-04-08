@@ -375,3 +375,118 @@ register('annotated_result', {
     },
   }],
 }));
+
+// ─── Fuzzing / Edge-Case Tools ───────────────────────────────────────────────
+
+// 17. emoji_tool — emoji in name, description, inputs, and outputs
+register('emoji_echo_🔥', {
+  name: 'emoji_echo_🔥',
+  description: '🎉 Echoes input with emoji! Tests Unicode handling in tool names, descriptions, and content. 🚀✨',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      message: { type: 'string', description: '💬 Message to echo (try emoji!)' },
+    },
+    required: ['message'],
+  },
+}, (args) => text(`🔥 Echo: ${args.message} 🔥`));
+
+// 18. long_description — stress-tests description rendering
+register('long_description_tool', {
+  name: 'long_description_tool',
+  description: 'This tool has an intentionally very long description to test how the client renders and truncates tool descriptions in the UI. '.repeat(10) + 'End of description.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      input: { type: 'string', description: 'Any input' },
+    },
+  },
+}, (args) => text(args.input || 'ok'));
+
+// 19. newline_description — newlines and formatting in description
+register('newline_description_tool', {
+  name: 'newline_description_tool',
+  description: 'Line 1: This tool tests newlines in descriptions.\nLine 2: Does the client render this on a new line?\nLine 3: Or does it collapse into one line?\n\n- Bullet 1\n- Bullet 2\n- Bullet 3',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      input: { type: 'string' },
+    },
+  },
+}, (args) => text(args.input || 'ok'));
+
+// 20. special_chars — special characters in all fields
+register('special_chars_tool', {
+  name: 'special_chars_tool',
+  description: 'Tests special chars: <script>alert("xss")</script> & "quotes" \'single\' `backticks` $dollar {braces} [brackets] | pipe \\ backslash',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      html_input: { type: 'string', description: 'Try <b>bold</b> or <img src=x onerror=alert(1)>' },
+      sql_input: { type: 'string', description: "Try ' OR 1=1 --" },
+    },
+  },
+}, (args) => json({ echoed: args, sanitized: true }));
+
+// 21. unicode_stress — non-Latin scripts and edge-case Unicode
+register('unicode_stress', {
+  name: 'unicode_stress',
+  description: 'Tests Unicode: 日本語テスト العربية тест हिन्दी 한국어 ñ ü ö ä ß æ ø å',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      text: { type: 'string', description: 'Input in any language/script' },
+    },
+    required: ['text'],
+  },
+}, (args) => text(`Received: ${args.text} (length: ${args.text.length}, bytes: ${Buffer.byteLength(args.text, 'utf8')})`));
+
+// 22. empty_string_handling — tests empty vs null vs missing params
+register('empty_string_handling', {
+  name: 'empty_string_handling',
+  description: 'Returns detailed info about how each parameter was received. Tests empty string vs null vs missing.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      required_field: { type: 'string', description: 'A required field' },
+      optional_field: { type: 'string', description: 'An optional field' },
+    },
+    required: ['required_field'],
+  },
+}, (args) => json({
+  required_field: { value: args.required_field, type: typeof args.required_field, length: args.required_field?.length },
+  optional_field: { value: args.optional_field, type: typeof args.optional_field, present: 'optional_field' in args },
+}));
+
+// 23. massive_input_schema — many parameters
+register('massive_input_schema', {
+  name: 'massive_input_schema',
+  description: 'Has 20 parameters. Tests client rendering of large input schemas.',
+  inputSchema: {
+    type: 'object',
+    properties: Object.fromEntries(
+      Array.from({ length: 20 }, (_, i) => [`param_${i + 1}`, { type: 'string', description: `Parameter ${i + 1} of 20` }])
+    ),
+    required: ['param_1'],
+  },
+}, (args) => json({ received_params: Object.keys(args).length, params: args }));
+
+// 24. duplicate_content_types — returns same data in multiple formats
+register('duplicate_content_types', {
+  name: 'duplicate_content_types',
+  description: 'Returns the same data as both plain text and JSON text. Tests how client handles multiple text blocks.',
+  inputSchema: { type: 'object', properties: {} },
+}, () => ({
+  content: [
+    { type: 'text', text: 'Plain text: The answer is 42' },
+    { type: 'text', text: '{"format": "json", "answer": 42}' },
+    { type: 'text', text: '| format | answer |\n|--------|--------|\n| table  | 42     |' },
+  ],
+}));
+
+// 25. very_long_tool_name
+register('this_is_an_extremely_long_tool_name_that_tests_whether_the_client_can_handle_very_long_identifiers_without_breaking_the_ui_layout', {
+  name: 'this_is_an_extremely_long_tool_name_that_tests_whether_the_client_can_handle_very_long_identifiers_without_breaking_the_ui_layout',
+  description: 'Tests long tool name rendering.',
+  inputSchema: { type: 'object', properties: {} },
+}, () => text('It worked!'));
