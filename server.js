@@ -9,6 +9,7 @@ import { listTools, callTool } from './tools.js';
 const app = express();
 const PORT = process.env.PORT || 3000;
 const API_KEY = 'test-api-key-12345';
+const EMPTY_TOOLS_API_KEY = 'test-api-key-empty';
 
 // Basic auth configuration
 const BASIC_AUTH_USERNAME = process.env.BASIC_AUTH_USERNAME || 'mcpuser';
@@ -58,6 +59,11 @@ function authenticateApiKey(req, res, next) {
     return res.status(401).json({ error: 'Missing API key' });
   }
   
+  if (apiKey === EMPTY_TOOLS_API_KEY) {
+    req.emptyTools = true;
+    return next();
+  }
+
   if (apiKey !== API_KEY) {
     return res.status(403).json({ error: 'Invalid API key' });
   }
@@ -340,7 +346,7 @@ app.get('/health', (req, res) => {
 });
 
 // Factory function to create MCP server instance per connection
-function createMcpServer() {
+function createMcpServer({ emptyTools = false } = {}) {
   const server = new Server(
     {
       name: 'test-mcp-server',
@@ -355,7 +361,7 @@ function createMcpServer() {
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: listTools() };
+    return { tools: emptyTools ? [] : listTools() };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -399,7 +405,7 @@ app.get('/sse', authenticate, async (req, res) => {
     console.log('SSE connection closed:', transport.sessionId);
   });
   
-  const server = createMcpServer();
+  const server = createMcpServer({ emptyTools: !!req.emptyTools });
   await server.connect(transport);
   console.log('MCP server connected, session:', transport.sessionId);
 });
@@ -471,7 +477,7 @@ app.post('/mcp', authenticate, async (req, res) => {
     }
   };
   
-  const server = createMcpServer();
+  const server = createMcpServer({ emptyTools: !!req.emptyTools });
   await server.connect(transport);
   await transport.handleRequest(req, res, req.body);
 
